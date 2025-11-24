@@ -56,6 +56,23 @@ class Node:
         """Returns an unambiguous string representation of the node."""
         return f"Node(number={self.number}, out={self.outGoing}, in={self.inGoing})"
     
+    def getVector(self):
+        """
+        Return the vector used to calculate the rank of page k, using the relative formula, where:
+        - x_j is a page that link to page x_k(the one we are calculating the rank vector)
+
+        Returns:
+        Return the vector composed by the rank of each incoming node, devided by the outgoing link from that node:
+        ex:
+            n_o = number_outgoning_nodes
+            node = 1; in = node3, node4 ; out = node3, node4, node2;
+            rank_1 = n_o(node3) + n_o(node4)
+            vector = [0, 0, 1/n_o(3), 1/n_o(4)]
+        """
+        #for in_node in self.inGoing:
+            
+        
+        return 0
 class Graph:
     def __init__(self, nodes=None):
         """
@@ -87,6 +104,15 @@ class Graph:
         present = self.getNode(node.number)
         if not present:
             self.nodes.append(node)
+            
+    def getCount(self):
+        """Returnd the count of nodes"""
+        return len(self.nodes)
+    
+    def getList(self):
+        """Returns a list of all node numbers."""
+        # List comprehension: more concise and faster
+        return [n.number for n in self.nodes]
     
     def plot(self):
         """
