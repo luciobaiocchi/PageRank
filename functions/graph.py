@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from multiprocessing import Pool, cpu_count
 import time
+from scipy.sparse import csr_matrix
+import plotly.graph_objects as go
 
 class Node:
     """Represents a single node in a directed graph."""
@@ -83,6 +85,9 @@ class Graph:
         """
         # Set self.nodes to an empty list if nodes is None, otherwise use the provided list
         self.nodes = [] if nodes is None else nodes
+        # Mappa per convertire ID nodo (es. 1, 28, 100) in indici di matrice (0, 1, 2...)
+        self.id_to_index = {} 
+        self.index_to_id = {}
     
     def getNode(self, node_number):
         """
@@ -114,46 +119,153 @@ class Graph:
         # List comprehension: more concise and faster
         return [n.number for n in self.nodes]
     
+    def get_matrix_data(self):
+        """Genera matrice sparsa A e vettore dangling h"""
+        nodes = self.nodes
+        N = len(nodes)
+        self.id_to_index = {node.number: i for i, node in enumerate(nodes)}
+        self.index_to_id = {i: node.number for i, node in enumerate(nodes)}
+
+        rows, cols, data = [], [], []
+        h = np.zeros((N, 1))
+
+        for i, node in enumerate(nodes):
+            out_neighbors = node.outGoing 
+            out_degree = len(out_neighbors)
+
+            if out_degree == 0:
+                h[i, 0] = 1.0 # Nodo dangling
+            else:
+                weight = 1.0 / out_degree
+                for target_id in out_neighbors:
+                    if target_id in self.id_to_index:
+                        target_idx = self.id_to_index[target_id]
+                        rows.append(target_idx)
+                        cols.append(i)
+                        data.append(weight)
+
+        A = csr_matrix((data, (rows, cols)), shape=(N, N))
+        return A, h, self.index_to_id
+
+    
+    def print(self):
+        for node in self.nodes:
+            print(node)
+            
+    def _calculate_arrow_geometry(self, start_pos, end_pos, node_radius, shift_offset=0):
+        """
+        Calcola le coordinate esatte di inizio e fine freccia.
+        - Accorcia la linea per non finire sotto il nodo (node_radius).
+        - Sposta la linea lateralmente se serve (shift_offset).
+        """
+        vector = end_pos - start_pos
+        dist = np.linalg.norm(vector)
+        if dist == 0: return start_pos, end_pos
+        unit_vector = vector / dist
+        perp_vector = np.array([-unit_vector[1], unit_vector[0]])
+        start_coord = start_pos + (unit_vector * node_radius) + (perp_vector * shift_offset)
+        end_coord = end_pos - (unit_vector * node_radius) + (perp_vector * shift_offset)
+
+        return start_coord, end_coord
+
     def plot(self):
-        """
-        Plots the graph using networkx and matplotlib.
+        print("\nGenerazione grafico stabile con layout circolare...")
         
-        Note: This requires 'networkx' and 'matplotlib' to be installed.
-        (e.g., pip install networkx matplotlib)
-        """
-        # Create a new directed graph from networkx
-        G = nx.DiGraph()
+        n_nodes = self.getCount()
+        if n_nodes == 0: return
 
-        # Add all nodes to the networkx graph
-        # We use node.number as the identifier in networkx
+        G_nx = nx.DiGraph()
         for node in self.nodes:
-            G.add_node(node.number)
+            G_nx.add_node(node.number)
+            for target in node.outGoing:
+                G_nx.add_edge(node.number, int(target))
 
-        # Add all edges
-        for node in self.nodes:
-            # node.outGoing contains the numbers of the nodes it points to
-            for target_node_number in node.outGoing:
-                # Ensure the target node is also in our graph's node list
-                # (to avoid adding edges to nodes that don't exist)
-                # Cast to int just in case numpy stores it as float
-                target_node = self.getNode(int(target_node_number))
-                if target_node:
-                    # Add an edge from the current node to the target node
-                    G.add_edge(node.number, int(target_node_number))
+        pos = nx.circular_layout(G_nx)
+        NODE_SIZE = 45
+        NODE_RADIUS_DATA = 0.12 
+        SHIFT_AMOUNT = 0.05
 
-        print("\nPlotting graph... (A new window should open)")
+        node_x, node_y, node_text, hover_text = [], [], [], []
         
-        # Draw the graph
-        # 'spring_layout' is one of many layout algorithms
-        pos = nx.spring_layout(G)
-        
-        # Draw with options
-        nx.draw(G, pos, with_labels=True, node_color='lightblue', 
-                arrowstyle='-|>', arrowsize=20, node_size=700,
-                font_weight='bold', arrows=True)
-        
-        # Display the plot
-        plt.show()
+        for node_num, coords in pos.items():
+            node_x.append(coords[0])
+            node_y.append(coords[1])
+            node_text.append(str(node_num))
+            
+            node_obj = self.getNode(node_num)
+            info = f"<b>Nodo {node_num}</b><br>Out: {node_obj.getOutCount()}<br>In: {node_obj.getInCount()}"
+            hover_text.append(info)
+
+        node_trace = go.Scatter(
+            x=node_x, y=node_y,
+            mode='markers+text',
+            text=node_text, textposition="middle center",
+            hoverinfo='text', hovertext=hover_text,
+            # Marker grande e opaco per nascondere l'inizio delle frecce se i calcoli non sono perfetti
+            marker=dict(size=NODE_SIZE, color='#7bc0f7', line=dict(width=2, color='#333')), 
+            textfont=dict(size=14, color='black', weight='bold')
+        )
+
+        annotations = []
+        processed_pairs = set()
+
+        for source_node in self.nodes:
+            u = source_node.number
+            if u not in pos: continue
+            p_u = np.array(pos[u])
+
+            for target_num in source_node.outGoing:
+                v = int(target_num)
+                if v not in pos: continue
+                if u == v: continue # Ignora self-loop per ora
+
+                pair_key = tuple(sorted((u, v)))
+                
+                # Se abbiamo già disegnato questa coppia, saltiamo
+                if pair_key in processed_pairs: continue
+
+                p_v = np.array(pos[v])
+                target_obj = self.getNode(v)
+                
+                # Check Bidirezionale
+                is_bidirectional = u in target_obj.outGoing
+
+                if not is_bidirectional:
+                    s_coord, e_coord = self._calculate_arrow_geometry(p_u, p_v, NODE_RADIUS_DATA, 0)
+                    
+                    annotations.append(dict(
+                        ax=s_coord[0], ay=s_coord[1], axref='x', ayref='y',
+                        x=e_coord[0], y=e_coord[1], xref='x', yref='y',
+                        showarrow=True, arrowhead=2, arrowsize=1.5, arrowwidth=2, arrowcolor='black'
+                    ))
+                else:
+                    s_uv, e_uv = self._calculate_arrow_geometry(p_u, p_v, NODE_RADIUS_DATA, SHIFT_AMOUNT)
+                    annotations.append(dict(
+                        ax=s_uv[0], ay=s_uv[1], axref='x', ayref='y',
+                        x=e_uv[0], y=e_uv[1], xref='x', yref='y',
+                        showarrow=True, arrowhead=2, arrowsize=1.5, arrowwidth=2, arrowcolor='black'
+                    ))
+                    s_vu, e_vu = self._calculate_arrow_geometry(p_v, p_u, NODE_RADIUS_DATA, SHIFT_AMOUNT)
+                    annotations.append(dict(
+                        ax=s_vu[0], ay=s_vu[1], axref='x', ayref='y',
+                        x=e_vu[0], y=e_vu[1], xref='x', yref='y',
+                        showarrow=True, arrowhead=2, arrowsize=1.5, arrowwidth=2, arrowcolor='black'
+                    ))
+                    
+                    processed_pairs.add(pair_key)
+        axis_range = [-1.3, 1.3]
+
+        fig = go.Figure(data=[node_trace],
+            layout=go.Layout(
+                title=dict(text='Visualizzazione grafo', font=dict(size=16)),
+                showlegend=False, hovermode='closest',
+                margin=dict(b=20,l=20,r=20,t=50),
+                annotations=annotations,
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=axis_range, scaleanchor="y", scaleratio=1),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=axis_range),
+                plot_bgcolor='white', width=700, height=700
+            ))
+        fig.show()
         
     def plotLarge(self):
         """
