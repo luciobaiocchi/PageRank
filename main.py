@@ -107,4 +107,4 @@ for i in range(10):
         
     print(f"{i+1:<5} {score:.8f}   {node_real_id:<6} {url_text}")
     
-#graph.plotLargePlotly()
+graph.plotLargePlotly()

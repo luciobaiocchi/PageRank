@@ -332,7 +332,7 @@ class Graph:
                 arrows=True
         )
         
-        ax1.set_title(f"Nodi colorati per Collegamenti IN ENTRATA (rosso intenso = più collegamenti)\n{len(G.nodes)} Nodi, {len(G.edges)} Archi", 
+        ax1.set_title(f"Nodi colorati per Collegamenti IN ENTRATA (Blu intenso = più collegamenti)\n{len(G.nodes)} Nodi, {len(G.edges)} Archi", 
                     fontsize=16, fontweight='bold', pad=20)
         ax1.axis('off')
         
