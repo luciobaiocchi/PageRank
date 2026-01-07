@@ -3,7 +3,6 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from multiprocessing import Pool, cpu_count
 import time
 from scipy.sparse import csr_matrix
 import plotly.graph_objects as go
@@ -424,7 +423,6 @@ class Graph:
                     G.add_edge(node.number, target_num)
 
         print(f"Graph built with {len(G.nodes)} nodes and {len(G.edges)} edges")
-        print(f"Computing layout using parallel processing with {cpu_count()} CPUs...")
         
         # Calcola il layout con più iterazioni per grafi grandi
         # Usa n_jobs=-1 se disponibile (solo in alcune versioni)

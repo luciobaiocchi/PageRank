@@ -23,7 +23,7 @@ node4.addOut([1,3])
 
 graph = Graph([node1, node2, node3, node4])
 graph.print()
-graph.plot()
+#graph.plot()
 testRank(graph)
     
 print("================================================================ FIG 2.2 CASE ================================================================")
@@ -36,7 +36,7 @@ graph.addNode(node5)
 
 testRank(graph)
 graph.print()
-graph.plot()
+#graph.plot()
 print("================================================================== HOLLINS ===================================================================")
 try:
     f = open("/Users/luciobaiocchi/polito/0_Algebra/PageRank/hollins.dat")
@@ -105,4 +105,6 @@ for i in range(10):
         
     print(f"{i+1:<5} {score:.8f}   {node_real_id:<6} {url_text}")
     
-graph.plotLargePlotly()
+# OPTIONAL DECOMMENT THE FOLLOWING LINE IN ORDER
+# TO SEE IMAGE OF GRAPH, REQUIRES plotly INSTALLED
+#graph.plotLargePlotly()
