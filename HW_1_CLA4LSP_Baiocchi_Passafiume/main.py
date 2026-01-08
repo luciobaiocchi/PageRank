@@ -27,16 +27,32 @@ graph.print()
 testRank(graph)
     
 print("================================================================ FIG 2.2 CASE ================================================================")
+node1 = Node(number=1)
+node2 = Node(number=2)
+node3 = Node(number=3)
+node4 = Node(number=4)
 node5 = Node(number=5)
-node3.addOut([5])
-node3.addIn([5])
-node5.addOut([3])
-node5.addIn([3])
-graph.addNode(node5)
 
-testRank(graph)
+#first subweb
+node1.addOut([2])
+node1.addIn([2])
+node2.addIn([1])
+node2.addOut([1])
+
+#second subweb
+node3.addIn([4, 5])
+node3.addOut([4])
+node4.addIn([3, 5])
+node4.addOut([3])
+node5.addOut([3, 4])
+
+graph = Graph([node1, node2, node3, node4, node5])
+
 graph.print()
 #graph.plot()
+A_initial, h, mapping = graph.get_matrix_data()
+print(A_initial)
+testRank(graph)
 print("================================================================== HOLLINS ===================================================================")
 try:
     f = open("/Users/luciobaiocchi/polito/0_Algebra/PageRank/hollins.dat")
